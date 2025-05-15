@@ -6,6 +6,7 @@ import {
   MdHome,
   MdLock,
   MdOutlineShoppingCart,
+	MdRestaurantMenu,
 } from 'react-icons/md';
 
 // Admin Imports
@@ -14,10 +15,13 @@ import NFTMarketplace from 'views/admin/marketplace';
 import Profile from 'views/admin/profile';
 import DataTables from 'views/admin/dataTables';
 import Users from 'views/admin/User';
-
+import SubAdmin from 'views/admin/SubAdmin';
+import Restaurant from 'views/admin/Restaurant';
+import CreateRestaurant from 'views/admin/CreateRestaurant';
 
 // Auth Imports
 import SignInCentered from 'views/auth/signIn';
+import { FaUtensils } from 'react-icons/fa';
 
 const routes = [
   {
@@ -30,9 +34,32 @@ const routes = [
   {
     name: 'Users',
     layout: '/admin',
-    icon: <Icon as={MdBarChart} width="20px" height="20px" color="inherit" />,
+    icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
     path: '/users',
     component: <Users />,
+  },
+  {
+    name: 'SubAdmins',
+    layout: '/admin',
+    icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
+    path: '/subadmins',
+    component: <SubAdmin />,
+  },
+  {
+    name: 'Restaurants',
+    layout: '/admin',
+    icon: (
+      <Icon as={MdRestaurantMenu} width="20px" height="20px" color="inherit" />
+    ),
+    path: '/restaurants',
+    component: <Restaurant />,
+  },
+  {
+    name: 'Add Restaurant',
+    layout: '/admin',
+    icon: <Icon as={FaUtensils} width="20px" height="20px" color="inherit" />,
+    path: '/create-restaurant',
+    component: <CreateRestaurant />,
   },
   {
     name: 'NFT Marketplace',

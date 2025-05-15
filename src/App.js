@@ -6,6 +6,7 @@ import { ChakraProvider } from '@chakra-ui/react';
 import initialTheme from './theme/theme';
 import { useState } from 'react';
 import SignInCentered from './views/auth/signIn';
+import CreateSubadmin from 'views/admin/CreateSubadmin';
 
 // PrivateRoute for protected routes (admin/*)
 function PrivateRoute() {
@@ -33,6 +34,7 @@ export default function Main() {
               <AdminLayout theme={currentTheme} setTheme={setCurrentTheme} />
             }
           />
+					 <Route path="/create-subadmin" element={<CreateSubadmin />} />
         </Route>
         {/* Restrict sign-in to unauthenticated users */}
         <Route element={<PublicRoute />}>

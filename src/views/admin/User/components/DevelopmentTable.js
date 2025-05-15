@@ -11,6 +11,11 @@ import {
   Thead,
   Tr,
   useColorModeValue,
+  Spinner,
+  Alert,
+  AlertIcon,
+  Button,
+  HStack,
 } from '@chakra-ui/react';
 import {
   createColumnHelper,
@@ -20,51 +25,49 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import Card from 'components/card/Card';
-import Menu from 'components/menu/MainMenu';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { ArrowUpIcon, ArrowDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 
 const columnHelper = createColumnHelper();
 
-export default function ComplexTable() {
-  const [sorting, setSorting] = useState([]);
+// Custom hook for fetching users
+const useFetchUsers = (baseUrl, token, navigate) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const textColor = useColorModeValue('secondaryGray.900', 'white');
-  const borderColor = useColorModeValue('gray.200', 'whiteAlpha.100');
 
-  const baseUrl = process.env.REACT_APP_BASE_URL; // For Create React App
-  const token = localStorage.getItem('token');
-  const navigate = useNavigate();
-
-  // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
       try {
+        if (!baseUrl || !token) {
+          throw new Error('Missing API URL or authentication token');
+        }
         const response = await axios.get(`${baseUrl}api/admin/getAllUsers`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
         });
-
-        // Transform API data to match table structure
-        const transformedData = response.data.users.map((user, index) => ({
-          full_name: user.full_name || `User ${index + 1}`,
-          email: user.email || 'N/A',
-          mobile: user.mobile || 'N/A',
-          createdAt: user.createdAt
-            ? new Date(user.createdAt).toISOString().split('T')[0]
-            : 'N/A',
-        }));
-
-        setData(transformedData);
+        if (!response.data?.users) {
+          throw new Error('Invalid API response: No users found');
+        }
+        setData(
+          response.data.users.map((user) => ({
+            profile_pic: user.profile_pic ? `${baseUrl}${user.profile_pic}` : 'N/A',
+            full_name: user.full_name || 'N/A',
+            email: user.email || 'N/A',
+            mobile: user.mobile || 'N/A',
+            createdAt: user.createdAt
+              ? new Date(user.createdAt).toISOString().split('T')[0]
+              : 'N/A',
+          }))
+        );
       } catch (error) {
         console.error('Error fetching data:', error);
         const errorMessage =
-          error.response?.data?.message || 'Failed to load data. Please try again.';
-        if (errorMessage === 'Session expired or logged in on another device') {
-          localStorage.removeItem('token'); // Clear token
-          navigate('/'); // Navigate to root
+          error.response?.data?.message || error.message || 'Failed to load data';
+        if (errorMessage.includes('Session expired')) {
+          localStorage.removeItem('token');
+          navigate('/');
         } else {
           setError(errorMessage);
         }
@@ -72,16 +75,67 @@ export default function ComplexTable() {
         setLoading(false);
       }
     };
-
-    if (baseUrl && token) {
-      fetchData();
-    } else {
-      setError('Missing API URL or authentication token');
-      setLoading(false);
-    }
+    fetchData();
   }, [baseUrl, token, navigate]);
 
+  return { data, loading, error };
+};
+
+export default function ComplexTable() {
+  const [sorting, setSorting] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // 10 users per page
+  const textColor = useColorModeValue('secondaryGray.900', 'white');
+  const borderColor = useColorModeValue('gray.200', 'whiteAlpha.100');
+  const baseUrl = useMemo(() => process.env.REACT_APP_BASE_URL, []);
+  const token = localStorage.getItem('token');
+  const navigate = useNavigate();
+
+  const { data, loading, error } = useFetchUsers(baseUrl, token, navigate);
+
+  // Pagination logic
+  const totalItems = data.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedData = data.slice(startIndex, endIndex);
+
+  // Handle page navigation
+  const goToPage = (page) => {
+    setCurrentPage(Math.min(Math.max(1, page), totalPages));
+  };
+
   const columns = [
+    columnHelper.accessor('profile_pic', {
+      id: 'profile_pic',
+      header: () => (
+        <Text
+          justifyContent="space-between"
+          align="center"
+          fontSize={{ sm: '10px', lg: '12px' }}
+          color="gray.400"
+        >
+          PROFILE PIC
+        </Text>
+      ),
+      cell: (info) => (
+        <Flex align="center">
+          {info.getValue() !== 'N/A' ? (
+            <img
+              src={info.getValue()}
+              alt="Profile"
+              loading="lazy"
+              style={{ width: '50px', height: '50px', borderRadius: '50%' }}
+              onError={(e) => (e.target.src = '/assets/placeholder.png')}
+            />
+          ) : (
+            <Text color={textColor} fontSize="sm" fontWeight="700">
+              N/A
+            </Text>
+          )}
+        </Flex>
+      ),
+    }),
     columnHelper.accessor('full_name', {
       id: 'full_name',
       header: () => (
@@ -95,11 +149,9 @@ export default function ComplexTable() {
         </Text>
       ),
       cell: (info) => (
-        <Flex align="center">
-          <Text color={textColor} fontSize="sm" fontWeight="700">
-            {info.getValue()}
-          </Text>
-        </Flex>
+        <Text color={textColor} fontSize="sm" fontWeight="700">
+          {info.getValue()}
+        </Text>
       ),
     }),
     columnHelper.accessor('email', {
@@ -121,7 +173,7 @@ export default function ComplexTable() {
       ),
     }),
     columnHelper.accessor('mobile', {
-      id: 'mobile',
+      id: 'mobile', 
       header: () => (
         <Text
           justifyContent="space-between"
@@ -159,21 +211,29 @@ export default function ComplexTable() {
   ];
 
   const table = useReactTable({
-    data,
+    data: paginatedData, // Use paginated data
     columns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    debugTable: true,
   });
 
   if (loading) {
-    return <Box>Loading...</Box>;
+    return (
+      <Box textAlign="center" py={10}>
+        <Spinner size="lg" />
+      </Box>
+    );
   }
 
   if (error) {
-    return <Box>{error}</Box>;
+    return (
+      <Alert status="error" mb={4}>
+        <AlertIcon />
+        {error}
+      </Alert>
+    );
   }
 
   return (
@@ -192,7 +252,6 @@ export default function ComplexTable() {
         >
           Users Table
         </Text>
-        <Menu />
       </Flex>
       <Box>
         <Table variant="simple" color="gray.500" mb="24px" mt="12px">
@@ -207,6 +266,13 @@ export default function ComplexTable() {
                     borderColor={borderColor}
                     cursor="pointer"
                     onClick={header.column.getToggleSortingHandler()}
+                    aria-sort={
+                      header.column.getIsSorted()
+                        ? header.column.getIsSorted() === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                    }
                   >
                     <Flex
                       justifyContent="space-between"
@@ -216,12 +282,15 @@ export default function ComplexTable() {
                     >
                       {flexRender(
                         header.column.columnDef.header,
-                        header.getContext(),
+                        header.getContext()
                       )}
-                      {{
-                        asc: '',
-                        desc: '',
-                      }[header.column.getIsSorted()] ?? null}
+                      {header.column.getIsSorted() ? (
+                        header.column.getIsSorted() === 'asc' ? (
+                          <ArrowUpIcon ml={1} />
+                        ) : (
+                          <ArrowDownIcon ml={1} />
+                        )
+                      ) : null}
                     </Flex>
                   </Th>
                 ))}
@@ -229,7 +298,7 @@ export default function ComplexTable() {
             ))}
           </Thead>
           <Tbody>
-            {table.getRowModel().rows.slice(0, 11).map((row) => (
+            {table.getRowModel().rows.map((row) => (
               <Tr key={row.id}>
                 {row.getVisibleCells().map((cell) => (
                   <Td
@@ -246,6 +315,40 @@ export default function ComplexTable() {
           </Tbody>
         </Table>
       </Box>
+      {/* Pagination Controls */}
+      <Flex justifyContent="space-between" alignItems="center" px="25px" py="10px">
+        <Text fontSize="sm" color={textColor}>
+          Showing {startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} users
+        </Text>
+        <HStack>
+          <Button
+            size="sm"
+            onClick={() => goToPage(currentPage - 1)}
+            isDisabled={currentPage === 1}
+            leftIcon={<ChevronLeftIcon />}
+          >
+            Previous
+          </Button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <Button
+              key={page}
+              size="sm"
+              onClick={() => goToPage(page)}
+              variant={currentPage === page ? 'solid' : 'outline'}
+            >
+              {page}
+            </Button>
+          ))}
+          <Button
+            size="sm"
+            onClick={() => goToPage(currentPage + 1)}
+            isDisabled={currentPage === totalPages}
+            rightIcon={<ChevronRightIcon />}
+          >
+            Next
+          </Button>
+        </HStack>
+      </Flex>
     </Card>
   );
 }

@@ -1,6 +1,6 @@
 // Chakra imports
 import { Portal, Box, useDisclosure } from '@chakra-ui/react';
-import Footer from 'components/footer/FooterAdmin.js';
+// import Footer from 'components/footer/FooterAdmin.js';
 // Layout components
 import Navbar from 'components/navbar/NavbarAdmin.js';
 import Sidebar from 'components/sidebar/Sidebar.js';
@@ -8,6 +8,7 @@ import { SidebarContext } from 'contexts/SidebarContext';
 import React, { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import routes from 'routes.js';
+
 
 // Custom Chakra theme
 export default function Dashboard(props) {
@@ -160,9 +161,7 @@ export default function Dashboard(props) {
                 </Routes>
               </Box>
             ) : null}
-            <Box>
-              <Footer />
-            </Box>
+            <Box></Box>
           </Box>
         </SidebarContext.Provider>
       </Box>
