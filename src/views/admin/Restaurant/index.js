@@ -90,6 +90,7 @@ const useFetchRestaurants = (baseUrl, token) => {
             closing_time: restaurant.closing_time || 'N/A',
             tax_rate: restaurant.tax_rate || 0,
             rating: restaurant.rating || 0,
+						createdAt: restaurant.createdAt || 'N/A',
             locationAddress: restaurant.locationAddress || 'N/A',
             latitude: restaurant.latitude || 0,
             longitude: restaurant.longitude || 0,
@@ -313,6 +314,24 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
       </Text>
     ),
   }),
+	// columnHelper.accessor('createdAt', {
+  //   id: 'createdAt',
+  //   header: () => (
+  //     <Text
+  //       justifyContent="space-between"
+  //       align="center"
+  //       fontSize={{ sm: '10px', lg: '12px' }}
+  //       color="gray.400"
+  //     >
+  //       CREATEDAt
+  //     </Text>
+  //   ),
+  //   cell: (info) => (
+  //     <Text color={textColor} fontSize="sm" fontWeight="700">
+  //       {info.getValue()}
+  //     </Text>
+  //   ),
+  // }),
   columnHelper.display({
     id: 'actions',
     header: () => (
@@ -474,7 +493,7 @@ function Restaurants() {
   };
 
   const handleCreateRestaurant = () => {
-    navigate('/create-restaurant');
+    navigate('/admin/create-restaurant');
   };
 
   const handleInputChange = (e) => {
@@ -822,7 +841,7 @@ function Restaurants() {
                 name="closing_time"
                 value={formData.closing_time}
                 onChange={handleInputChange}
-                placeholder="e.g., 22:00"
+                placeholder="e.g., 07:00"
               />
             </FormControl>
             <FormControl mb={4} isRequired>

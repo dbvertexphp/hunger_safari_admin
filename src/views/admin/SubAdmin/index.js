@@ -25,6 +25,7 @@ import {
   FormLabel,
   Input,
   Select,
+  Switch,
 } from '@chakra-ui/react';
 import {
   ArrowUpIcon,
@@ -43,7 +44,13 @@ import {
 import Card from 'components/card/Card';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+} from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { debounce } from 'lodash';
 
@@ -88,6 +95,7 @@ const useFetchSubAdmins = (baseUrl, token, navigate, restaurants) => {
               restaurant_id: user.restaurant_id?._id || 'N/A',
               restaurant_name: user.restaurant_id?.name || 'N/A',
               plain_password: user.plain_password || 'N/A',
+              active: user.active ?? true, // Include active field
             };
           }),
         );
@@ -147,8 +155,8 @@ const useFetchRestaurants = (baseUrl, token) => {
   return { restaurants, loading, error };
 };
 
-// Define columns without useMemo
-const getColumns = (textColor, handleEditClick) => [
+// Define columns
+const getColumns = (textColor, handleEditClick, handleToggleActive) => [
   columnHelper.accessor('full_name', {
     id: 'full_name',
     header: () => (
@@ -239,6 +247,25 @@ const getColumns = (textColor, handleEditClick) => [
       </Text>
     ),
   }),
+  columnHelper.accessor('active', {
+    id: 'active',
+    header: () => (
+      <Text
+        justifyContent="space-between"
+        align="center"
+        fontSize={{ sm: '10px', lg: '12px' }}
+        color="gray.400"
+      >
+        ACTIVE
+      </Text>
+    ),
+    cell: (info) => (
+      <Switch
+        isChecked={info.getValue()}
+        onChange={() => handleToggleActive(info.row.original)}
+      />
+    ),
+  }),
   columnHelper.display({
     id: 'actions',
     header: () => (
@@ -303,6 +330,35 @@ function Settings() {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleToggleActive = useCallback(
+    async (user) => {
+      try {
+				const userId = user.id;
+        const newActiveStatus = !user.active;
+        const response = await axios.patch(
+          `${baseUrl}api/admin/updateUserStatus`,
+          { userId, active: newActiveStatus },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (response.data.success) {
+          setData((prevData) =>
+            prevData.map((item) =>
+              item.id === user.id ? { ...item, active: newActiveStatus } : item,
+            ),
+          );
+        } else {
+          throw new Error(
+            response.data.message || 'Failed to update active status',
+          );
+        }
+      } catch (error) {
+        console.error('Error toggling active status:', error);
+        setFormError(error.message || 'Failed to update active status');
+      }
+    },
+    [baseUrl, token, setData, setFormError],
+  );
+
   const handleEditClick = useMemo(
     () =>
       debounce((user) => {
@@ -326,12 +382,12 @@ function Settings() {
           setFormError('Failed to open edit modal');
         }
       }, 300),
-    [],
+    [setFormError, setIsEditModalOpen, setSelectedUser],
   );
 
   const columns = useMemo(
-    () => getColumns(textColor, handleEditClick),
-    [textColor, handleEditClick],
+    () => getColumns(textColor, handleEditClick, handleToggleActive),
+    [textColor, handleEditClick, handleToggleActive],
   );
 
   const totalItems = data.length;
@@ -484,6 +540,12 @@ function Settings() {
 
   return (
     <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
+      {formError && (
+        <Alert status="error" mb={4}>
+          <AlertIcon />
+          {formError}
+        </Alert>
+      )}
       <Card
         flexDirection="column"
         w="100%"

@@ -16,6 +16,7 @@ import {
   AlertIcon,
   Button,
   HStack,
+  Switch,
 } from '@chakra-ui/react';
 import {
   createColumnHelper,
@@ -27,7 +28,7 @@ import {
 import Card from 'components/card/Card';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { ArrowUpIcon, ArrowDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 
 const columnHelper = createColumnHelper();
@@ -52,6 +53,7 @@ const useFetchUsers = (baseUrl, token, navigate) => {
         }
         setData(
           response.data.users.map((user) => ({
+            id: user._id,
             profile_pic: user.profile_pic ? `${baseUrl}${user.profile_pic}` : 'N/A',
             full_name: user.full_name || 'N/A',
             email: user.email || 'N/A',
@@ -59,6 +61,7 @@ const useFetchUsers = (baseUrl, token, navigate) => {
             createdAt: user.createdAt
               ? new Date(user.createdAt).toISOString().split('T')[0]
               : 'N/A',
+            active: user.active ?? true,
           }))
         );
       } catch (error) {
@@ -78,145 +81,233 @@ const useFetchUsers = (baseUrl, token, navigate) => {
     fetchData();
   }, [baseUrl, token, navigate]);
 
-  return { data, loading, error };
+  return { data, loading, error, setData, setError };
+};
+
+// Function to toggle user status
+const toggleUserStatus = async (baseUrl, token, userId, active, setData, setError) => {
+  try {
+    const response = await axios.patch(
+      `${baseUrl}api/admin/updateUserStatus`,
+      { userId, active: !active },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (response.data.success) {
+      setData((prevData) =>
+        prevData.map((user) =>
+          user.id === userId ? { ...user, active: !active } : user
+        )
+      );
+      return true;
+    } else {
+      throw new Error('Failed to update user status');
+    }
+  } catch (error) {
+    console.error('Error toggling user status:', error);
+    setError(error.response?.data?.message || 'Failed to update user status');
+    return false;
+  }
 };
 
 export default function ComplexTable() {
   const [sorting, setSorting] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // 10 users per page
+  const [toggleLoading, setToggleLoading] = useState({});
+  const itemsPerPage = 10;
   const textColor = useColorModeValue('secondaryGray.900', 'white');
   const borderColor = useColorModeValue('gray.200', 'whiteAlpha.100');
   const baseUrl = useMemo(() => process.env.REACT_APP_BASE_URL, []);
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
 
-  const { data, loading, error } = useFetchUsers(baseUrl, token, navigate);
+  const { data, loading, error, setData, setError } = useFetchUsers(baseUrl, token, navigate);
+
+  // Memoized toggle handler
+  const handleToggle = useCallback(
+    async (userId, currentActive) => {
+      if (toggleLoading[userId]) return;
+
+      setToggleLoading((prev) => ({ ...prev, [userId]: true }));
+      const success = await toggleUserStatus(
+        baseUrl,
+        token,
+        userId,
+        currentActive,
+        setData,
+        setError
+      );
+      setToggleLoading((prev) => ({ ...prev, [userId]: false }));
+      return success;
+    },
+    [baseUrl, token, setData, setError, toggleLoading]
+  );
 
   // Pagination logic
   const totalItems = data.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedData = data.slice(startIndex, endIndex);
+  const paginatedData = useMemo(() => data.slice(startIndex, endIndex), [data, startIndex, endIndex]);
 
-  // Handle page navigation
-  const goToPage = (page) => {
-    setCurrentPage(Math.min(Math.max(1, page), totalPages));
-  };
+  // Handle page navigation with validation
+  const goToPage = useCallback(
+    (page) => {
+      const newPage = Math.min(Math.max(1, page), totalPages);
+      if (newPage !== currentPage) {
+        console.log(`Navigating to page ${newPage}`); // Debug log
+        setCurrentPage(newPage);
+      }
+    },
+    [currentPage, totalPages]
+  );
 
-  const columns = [
-    columnHelper.accessor('profile_pic', {
-      id: 'profile_pic',
-      header: () => (
-        <Text
-          justifyContent="space-between"
-          align="center"
-          fontSize={{ sm: '10px', lg: '12px' }}
-          color="gray.400"
-        >
-          PROFILE PIC
-        </Text>
-      ),
-      cell: (info) => (
-        <Flex align="center">
-          {info.getValue() !== 'N/A' ? (
-            <img
-              src={info.getValue()}
-              alt="Profile"
-              loading="lazy"
-              style={{ width: '50px', height: '50px', borderRadius: '50%' }}
-              onError={(e) => (e.target.src = '/assets/placeholder.png')}
-            />
-          ) : (
-            <Text color={textColor} fontSize="sm" fontWeight="700">
-              N/A
-            </Text>
-          )}
-        </Flex>
-      ),
-    }),
-    columnHelper.accessor('full_name', {
-      id: 'full_name',
-      header: () => (
-        <Text
-          justifyContent="space-between"
-          align="center"
-          fontSize={{ sm: '10px', lg: '12px' }}
-          color="gray.400"
-        >
-          FULL NAME
-        </Text>
-      ),
-      cell: (info) => (
-        <Text color={textColor} fontSize="sm" fontWeight="700">
-          {info.getValue()}
-        </Text>
-      ),
-    }),
-    columnHelper.accessor('email', {
-      id: 'email',
-      header: () => (
-        <Text
-          justifyContent="space-between"
-          align="center"
-          fontSize={{ sm: '10px', lg: '12px' }}
-          color="gray.400"
-        >
-          EMAIL
-        </Text>
-      ),
-      cell: (info) => (
-        <Text color={textColor} fontSize="sm" fontWeight="700">
-          {info.getValue()}
-        </Text>
-      ),
-    }),
-    columnHelper.accessor('mobile', {
-      id: 'mobile', 
-      header: () => (
-        <Text
-          justifyContent="space-between"
-          align="center"
-          fontSize={{ sm: '10px', lg: '12px' }}
-          color="gray.400"
-        >
-          MOBILE
-        </Text>
-      ),
-      cell: (info) => (
-        <Text color={textColor} fontSize="sm" fontWeight="700">
-          {info.getValue()}
-        </Text>
-      ),
-    }),
-    columnHelper.accessor('createdAt', {
-      id: 'createdAt',
-      header: () => (
-        <Text
-          justifyContent="space-between"
-          align="center"
-          fontSize={{ sm: '10px', lg: '12px' }}
-          color="gray.400"
-        >
-          CREATED AT
-        </Text>
-      ),
-      cell: (info) => (
-        <Text color={textColor} fontSize="sm" fontWeight="700">
-          {info.getValue()}
-        </Text>
-      ),
-    }),
-  ];
+  // Reset page to 1 when data changes significantly
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      console.log(`Resetting page to 1 due to totalPages: ${totalPages}`); // Debug log
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  // Memoized columns
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('profile_pic', {
+        id: 'profile_pic',
+        header: () => (
+          <Text
+            justifyContent="space-between"
+            align="center"
+            fontSize={{ sm: '10px', lg: '12px' }}
+            color="gray.400"
+          >
+            PROFILE PIC
+          </Text>
+        ),
+        cell: (info) => (
+          <Flex align="center">
+            {info.getValue() !== 'N/A' ? (
+              <img
+                src={info.getValue()}
+                alt="Profile"
+                loading="lazy"
+                style={{ width: '50px', height: '50px', borderRadius: '50%' }}
+                onError={(e) => (e.target.src = '/assets/placeholder.png')}
+              />
+            ) : (
+              <Text color={textColor} fontSize="sm" fontWeight="700">
+                N/A
+              </Text>
+            )}
+          </Flex>
+        ),
+      }),
+      columnHelper.accessor('full_name', {
+        id: 'full_name',
+        header: () => (
+          <Text
+            justifyContent="space-between"
+            align="center"
+            fontSize={{ sm: '10px', lg: '12px' }}
+            color="gray.400"
+          >
+            FULL NAME
+          </Text>
+        ),
+        cell: (info) => (
+          <Text color={textColor} fontSize="sm" fontWeight="700">
+            {info.getValue()}
+          </Text>
+        ),
+      }),
+      columnHelper.accessor('email', {
+        id: 'email',
+        header: () => (
+          <Text
+            justifyContent="space-between"
+            align="center"
+            fontSize={{ sm: '10px', lg: '12px' }}
+            color="gray.400"
+          >
+            EMAIL
+          </Text>
+        ),
+        cell: (info) => (
+          <Text color={textColor} fontSize="sm" fontWeight="700">
+            {info.getValue()}
+          </Text>
+        ),
+      }),
+      columnHelper.accessor('mobile', {
+        id: 'mobile',
+        header: () => (
+          <Text
+            justifyContent="space-between"
+            align="center"
+            fontSize={{ sm: '10px', lg: '12px' }}
+            color="gray.400"
+          >
+            MOBILE
+          </Text>
+        ),
+        cell: (info) => (
+          <Text color={textColor} fontSize="sm" fontWeight="700">
+            {info.getValue()}
+          </Text>
+        ),
+      }),
+      columnHelper.accessor('createdAt', {
+        id: 'createdAt',
+        header: () => (
+          <Text
+            justifyContent="space-between"
+            align="center"
+            fontSize={{ sm: '10px', lg: '12px' }}
+            color="gray.400"
+          >
+            CREATED AT
+          </Text>
+        ),
+        cell: (info) => (
+          <Text color={textColor} fontSize="sm" fontWeight="700">
+            {info.getValue()}
+          </Text>
+        ),
+      }),
+      columnHelper.accessor('active', {
+        id: 'active',
+        header: () => (
+          <Text
+            justifyContent="space-between"
+            align="center"
+            fontSize={{ sm: '10px', lg: '12px' }}
+            color="gray.400"
+          >
+            ACTIVE
+          </Text>
+        ),
+        cell: (info) => (
+          <Switch
+            isChecked={info.getValue()}
+            onChange={() => handleToggle(info.row.original.id, info.getValue())}
+            colorScheme="teal"
+            isDisabled={toggleLoading[info.row.original.id]}
+          />
+        ),
+      }),
+    ],
+    [textColor, handleToggle, toggleLoading]
+  );
 
   const table = useReactTable({
-    data: paginatedData, // Use paginated data
+    data: paginatedData,
     columns,
-    state: { sorting },
+    state: { sorting, pagination: { pageIndex: currentPage - 1, pageSize: itemsPerPage } },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    manualPagination: true, // Enable manual pagination
+    pageCount: totalPages,
   });
 
   if (loading) {
