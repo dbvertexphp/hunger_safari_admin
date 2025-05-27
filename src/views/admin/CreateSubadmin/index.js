@@ -149,7 +149,7 @@ export default function CreateSubAdmin() {
   }
 
   return (
-    <Box maxW="600px" mx="auto" p={6}>
+    <Box maxW="600px" mx="auto" my="70px" p={6}>
       <Heading as="h1" size="xl" textAlign="center" color={textColor} mb={8}>
         Create Sub-Admin
       </Heading>

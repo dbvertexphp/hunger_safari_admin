@@ -18,6 +18,9 @@ import Users from 'views/admin/User';
 import SubAdmin from 'views/admin/SubAdmin';
 import Restaurant from 'views/admin/Restaurant';
 import CreateRestaurant from 'views/admin/CreateRestaurant';
+import CreateSubadmin from 'views/admin/CreateSubadmin';
+import CodOrders from 'views/admin/codOrders';
+import OnlineOrders from 'views/admin/onlineOrders';
 
 // Auth Imports
 import SignInCentered from 'views/auth/signIn';
@@ -45,6 +48,13 @@ const routes = [
     path: '/subadmins',
     component: <SubAdmin />,
   },
+	{
+    name: 'Create SubAdmin',
+    layout: '/admin',
+    icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
+    path: '/create-subadmin',
+    component: <CreateSubadmin />,
+  },
   {
     name: 'Restaurants',
     layout: '/admin',
@@ -60,6 +70,20 @@ const routes = [
     icon: <Icon as={FaUtensils} width="20px" height="20px" color="inherit" />,
     path: '/create-restaurant',
     component: <CreateRestaurant />,
+  },
+	 {
+    name: 'Cod Orders',
+    layout: '/admin',
+    icon: <Icon as={FaUtensils} width="20px" height="20px" color="inherit" />,
+    path: '/cod-orders',
+    component: <CodOrders />,
+  },
+	 {
+    name: 'Online Orders',
+    layout: '/admin',
+    icon: <Icon as={FaUtensils} width="20px" height="20px" color="inherit" />,
+    path: '/online-orders',
+    component: <OnlineOrders />,
   },
   // {
   //   name: 'NFT Marketplace',

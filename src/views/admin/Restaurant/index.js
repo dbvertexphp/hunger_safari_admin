@@ -27,6 +27,7 @@ import {
   Select,
   Image,
   Textarea,
+  Switch,
 } from '@chakra-ui/react';
 import {
   ArrowUpIcon,
@@ -46,9 +47,11 @@ import {
 import Card from 'components/card/Card';
 import axios from 'axios';
 import { Navigate, useNavigate } from 'react-router-dom';
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'; // Added useCallback
 import { ErrorBoundary } from 'react-error-boundary';
 import { debounce } from 'lodash';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const columnHelper = createColumnHelper();
 
@@ -90,12 +93,13 @@ const useFetchRestaurants = (baseUrl, token) => {
             closing_time: restaurant.closing_time || 'N/A',
             tax_rate: restaurant.tax_rate || 0,
             rating: restaurant.rating || 0,
-						createdAt: restaurant.createdAt || 'N/A',
+            createdAt: restaurant.createdAt || 'N/A',
             locationAddress: restaurant.locationAddress || 'N/A',
             latitude: restaurant.latitude || 0,
             longitude: restaurant.longitude || 0,
             image: restaurant.image || '',
             subAdminName: restaurant.subAdminName || 'N/A',
+            isActive: restaurant.active ?? true,
             subcategoryCount: restaurant.subcategories?.length || 0,
             subcategories: restaurant.subcategories?.map((sub) => ({
               _id: sub._id,
@@ -117,7 +121,7 @@ const useFetchRestaurants = (baseUrl, token) => {
           error.response?.data?.message ||
           error.message ||
           'Failed to load restaurants';
-        if (errorMessage.includes('Session expired')) {
+        if (errorMessage.includes('Session expired') || errorMessage.includes('Un-Authorized')) {
           localStorage.removeItem('token');
           Navigate('/');
         } else {
@@ -164,7 +168,7 @@ const useFetchCategories = (baseUrl, token) => {
   return { categories, loading, error };
 };
 
-const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
+const getColumns = (textColor, handleEditClick, handleViewDetailsClick, handleToggleActive, baseUrl, token, setData, expandedAddresses, toggleAddressExpansion) => [
   columnHelper.accessor('image', {
     id: 'image',
     header: () => (
@@ -201,7 +205,7 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
       </Text>
     ),
     cell: (info) => (
-      <Text color={textColor} fontSize="sm" fontWeight="700">
+      <Text color={textColor} fontSize="sm" fontWeight="700" whiteSpace="nowrap">
         {info.getValue()}
       </Text>
     ),
@@ -219,7 +223,7 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
       </Text>
     ),
     cell: (info) => (
-      <Text color={textColor} fontSize="sm" fontWeight="700">
+      <Text color={textColor} fontSize="sm" fontWeight="700" whiteSpace="nowrap">
         {info.getValue()}
       </Text>
     ),
@@ -236,11 +240,39 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
         ADDRESS
       </Text>
     ),
-    cell: (info) => (
-      <Text color={textColor} fontSize="sm" fontWeight="700">
-        {info.getValue()}
-      </Text>
-    ),
+    cell: ({ row, getValue }) => {
+      const address = getValue();
+      const maxLength = 50;
+      const isExpanded = expandedAddresses.includes(row.original.id);
+      const isLongAddress = address.length > maxLength;
+
+      return (
+        <Flex alignItems="center" flexWrap="wrap" maxW="300px">
+          <Text
+            color={textColor}
+            fontSize="sm"
+            fontWeight="700"
+            whiteSpace={isExpanded ? 'normal' : 'nowrap'}
+            overflow="hidden"
+            textOverflow={isExpanded ? 'unset' : 'ellipsis'}
+          >
+            {isExpanded || !isLongAddress ? address : `${address.slice(0, maxLength)}...`}
+          </Text>
+          {isLongAddress && (
+            <Button
+              variant="link"
+              colorScheme="teal"
+              size="sm"
+              ml={2}
+              onClick={() => toggleAddressExpansion(row.original.id)}
+              aria-label={isExpanded ? 'See less of address' : 'See more of address'}
+            >
+              {isExpanded ? 'See Less' : 'See More'}
+            </Button>
+          )}
+        </Flex>
+      );
+    },
   }),
   columnHelper.accessor('subAdminName', {
     id: 'subAdminName',
@@ -255,7 +287,7 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
       </Text>
     ),
     cell: (info) => (
-      <Text color={textColor} fontSize="sm" fontWeight="700">
+      <Text color={textColor} fontSize="sm" fontWeight="700" whiteSpace="nowrap">
         {info.getValue()}
       </Text>
     ),
@@ -273,7 +305,7 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
       </Text>
     ),
     cell: (info) => (
-      <Text color={textColor} fontSize="sm" fontWeight="700">
+      <Text color={textColor} fontSize="sm" fontWeight="700" whiteSpace="nowrap">
         {info.getValue()}
       </Text>
     ),
@@ -291,7 +323,7 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
       </Text>
     ),
     cell: (info) => (
-      <Text color={textColor} fontSize="sm" fontWeight="700">
+      <Text color={textColor} fontSize="sm" fontWeight="700" whiteSpace="nowrap">
         {info.getValue()}
       </Text>
     ),
@@ -309,29 +341,31 @@ const getColumns = (textColor, handleEditClick, handleViewDetailsClick) => [
       </Text>
     ),
     cell: (info) => (
-      <Text color={textColor} fontSize="sm" fontWeight="700">
+      <Text color={textColor} fontSize="sm" fontWeight="700" whiteSpace="nowrap">
         {info.getValue()}
       </Text>
     ),
   }),
-	// columnHelper.accessor('createdAt', {
-  //   id: 'createdAt',
-  //   header: () => (
-  //     <Text
-  //       justifyContent="space-between"
-  //       align="center"
-  //       fontSize={{ sm: '10px', lg: '12px' }}
-  //       color="gray.400"
-  //     >
-  //       CREATEDAt
-  //     </Text>
-  //   ),
-  //   cell: (info) => (
-  //     <Text color={textColor} fontSize="sm" fontWeight="700">
-  //       {info.getValue()}
-  //     </Text>
-  //   ),
-  // }),
+  columnHelper.accessor('isActive', {
+    id: 'isActive',
+    header: () => (
+      <Text
+        justifyContent="space-between"
+        align="center"
+        fontSize={{ sm: '10px', lg: '12px' }}
+        color="gray.400"
+      >
+        ACTIVE
+      </Text>
+    ),
+    cell: ({ row }) => (
+      <Switch
+        isChecked={row.original.isActive}
+        onChange={() => handleToggleActive(row.original)}
+        colorScheme="teal"
+      />
+    ),
+  }),
   columnHelper.display({
     id: 'actions',
     header: () => (
@@ -392,6 +426,7 @@ function Restaurants() {
   const itemsPerPage = 10;
   const textColor = useColorModeValue('secondaryGray.900', 'white');
   const borderColor = useColorModeValue('gray.200', 'whiteAlpha.100');
+  const toastTheme = useColorModeValue('light', 'dark');
   const baseUrl = useMemo(() => process.env.REACT_APP_BASE_URL, []);
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
@@ -420,6 +455,16 @@ function Restaurants() {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
+  const [expandedAddresses, setExpandedAddresses] = useState([]);
+
+  // Memoized toggleAddressExpansion to prevent re-creation on every render
+  const toggleAddressExpansion = useCallback((restaurantId) => {
+    setExpandedAddresses((prev) =>
+      prev.includes(restaurantId)
+        ? prev.filter((id) => id !== restaurantId)
+        : [...prev, restaurantId]
+    );
+  }, [setExpandedAddresses]);
 
   const handleEditClick = useMemo(
     () =>
@@ -474,9 +519,70 @@ function Restaurants() {
     []
   );
 
+  const handleToggleActive = useMemo(
+    () =>
+      debounce(async (restaurant) => {
+        try {
+          const newStatus = !restaurant.isActive;
+          const response = await axios.put(
+            `${baseUrl}api/resturant/statusUpdate/${restaurant.id}`,
+            { isActive: newStatus },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          if (response.data.message === 'Restaurant updated successfully') {
+            setData((prevData) =>
+              prevData.map((r) =>
+                r.id === restaurant.id ? { ...r, isActive: newStatus } : r
+              )
+            );
+            toast.success(`Restaurant ${newStatus ? 'activated' : 'deactivated'} successfully!`, {
+              position: 'top-right',
+              autoClose: 3000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              theme: toastTheme,
+            });
+          } else {
+            setFormError(response.data.message || 'Failed to update active status.');
+            toast.error(response.data.message || 'Failed to update active status.', {
+              position: 'top-right',
+              autoClose: 3000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              theme: toastTheme,
+            });
+          }
+        } catch (error) {
+          console.error('Error toggling active status:', error);
+          const errorMessage = error.response?.data?.message || 'Failed to update active status.';
+          setFormError(errorMessage);
+          toast.error(errorMessage, {
+            position: 'top-right',
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            theme: toastTheme,
+          });
+        }
+      }, 300),
+    [baseUrl, token, setData, toastTheme]
+  );
+
   const columns = useMemo(
-    () => getColumns(textColor, handleEditClick, handleViewDetailsClick),
-    [textColor, handleEditClick, handleViewDetailsClick]
+    () => getColumns(textColor, handleEditClick, handleViewDetailsClick, handleToggleActive, baseUrl, token, setData, expandedAddresses, toggleAddressExpansion),
+    [textColor, handleEditClick, handleViewDetailsClick, handleToggleActive, baseUrl, token, setData, expandedAddresses, toggleAddressExpansion]
   );
 
   const totalItems = data.length;
@@ -576,7 +682,7 @@ function Restaurants() {
         }
       );
 
-      if (response.data.message === "Restaurant updated successfully") {
+      if (response.data.message === 'Restaurant updated successfully') {
         const category = categories.find((c) => c._id === formData.category_id);
         setData((prevData) =>
           prevData.map((restaurant) =>
@@ -668,7 +774,7 @@ function Restaurants() {
 
   return (
     <Box pt={{ base: '130px', md: '80px', xl: '80px' }}>
-      <Card flexDirection="column" w="100%" px="0px" overflowX={{ sm: 'scroll', lg: 'hidden' }}>
+      <Card flexDirection="column" w="100%" px="0px">
         <Flex px="25px" mb="8px" justifyContent="space-between" align="center">
           <Text color={textColor} fontSize="22px" fontWeight="700" lineHeight="100%">
             Restaurants Table
@@ -677,64 +783,80 @@ function Restaurants() {
             Create Restaurant
           </Button>
         </Flex>
-        <Box>
-          <Table variant="simple" color="gray.500" mb="24px" mt="12px">
-            <Thead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <Tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <Th
-                      key={header.id}
-                      colSpan={header.colSpan}
-                      pe="10px"
-                      borderColor={borderColor}
-                      cursor={header.column.getCanSort() ? 'pointer' : 'default'}
-                      onClick={header.column.getToggleSortingHandler()}
-                      aria-sort={
-                        header.column.getIsSorted()
-                          ? header.column.getIsSorted() === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : 'none'
-                      }
-                    >
-                      <Flex
-                        justifyContent="space-between"
-                        align="center"
-                        fontSize={{ sm: '10px', lg: '12px' }}
-                        color="gray.400"
+        <Box overflowX="auto">
+          <Box
+            overflowX="auto"
+            sx={{
+              '&::-webkit-scrollbar': { height: '8px' },
+              '&::-webkit-scrollbar-thumb': { background: 'gray.400', borderRadius: '4px' },
+            }}
+          >
+            <Table
+              variant="simple"
+              color="gray.500"
+              mb="24px"
+              mt="12px"
+              minW={{ base: '1000px', md: '1200px' }}
+            >
+              <Thead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <Tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <Th
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        pe="10px"
+                        borderColor={borderColor}
+                        cursor={header.column.getCanSort() ? 'pointer' : 'default'}
+                        onClick={header.column.getToggleSortingHandler()}
+                        aria-sort={
+                          header.column.getIsSorted()
+                            ? header.column.getIsSorted() === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : 'none'
+                        }
+                        whiteSpace="nowrap"
                       >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getIsSorted() ? (
-                          header.column.getIsSorted() === 'asc' ? (
-                            <ArrowUpIcon ml={1} />
-                          ) : (
-                            <ArrowDownIcon ml={1} />
-                          )
-                        ) : null}
-                      </Flex>
-                    </Th>
-                  ))}
-                </Tr>
-              ))}
-            </Thead>
-            <Tbody>
-              {table.getRowModel().rows.map((row) => (
-                <Tr key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <Td
-                      key={cell.id}
-                      fontSize={{ sm: '14px' }}
-                      minW={{ sm: '150px', md: '200px', lg: 'auto' }}
-                      borderColor="transparent"
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </Td>
-                  ))}
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
+                        <Flex
+                          justifyContent="space-between"
+                          align="center"
+                          fontSize={{ sm: '10px', lg: '12px' }}
+                          color="gray.400"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.column.getIsSorted() ? (
+                            header.column.getIsSorted() === 'asc' ? (
+                              <ArrowUpIcon ml={1} />
+                            ) : (
+                              <ArrowDownIcon ml={1} />
+                            )
+                          ) : null}
+                        </Flex>
+                      </Th>
+                    ))}
+                  </Tr>
+                ))}
+              </Thead>
+              <Tbody>
+                {table.getRowModel().rows.map((row) => (
+                  <Tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <Td
+                        key={cell.id}
+                        fontSize={{ sm: '14px' }}
+                        borderColor="transparent"
+                        py={2}
+                        whiteSpace={cell.column.id === 'address' ? 'normal' : 'nowrap'}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </Td>
+                    ))}
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
         </Box>
         <Flex justifyContent="space-between" alignItems="center" px="25px" py="10px">
           <Text fontSize="sm" color={textColor}>
@@ -771,7 +893,8 @@ function Restaurants() {
         </Flex>
       </Card>
 
-      {/* Edit Restaurant Modal */}
+      <ToastContainer />
+
       <Modal isOpen={isEditModalOpen} onClose={onModalClose} size="xl">
         <ModalOverlay />
         <ModalContent>
@@ -933,7 +1056,6 @@ function Restaurants() {
         </ModalContent>
       </Modal>
 
-      {/* Details Modal */}
       <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} size="xl">
         <ModalOverlay />
         <ModalContent>
@@ -956,24 +1078,27 @@ function Restaurants() {
                       fallbackSrc="https://via.placeholder.com/100?text=No+Image"
                     />
                   )}
+                  <Text fontSize="sm" mb={2}>
+                    <strong>Details:</strong> {selectedRestaurantDetails.details || 'N/A'}
+                  </Text>
+                  <Text fontSize="sm" mb={2}>
+                    <strong>Opening Time:</strong> {selectedRestaurantDetails.opening_time || 'N/A'}
+                  </Text>
+                  <Text fontSize="sm" mb={2}>
+                    <strong>Closing Time:</strong> {selectedRestaurantDetails.closing_time || 'N/A'}
+                  </Text>
+                  <Text fontSize="sm" mb={2}>
+                    <strong>Location Address:</strong> {selectedRestaurantDetails.locationAddress || 'N/A'}
+                  </Text>
+                  <Text fontSize="sm" mb={2}>
+                    <strong>Coordinates:</strong> ({selectedRestaurantDetails.latitude}, {selectedRestaurantDetails.longitude})
+                  </Text>
+                  <Text fontSize="sm" mb={2}>
+                    <strong>Active:</strong> {selectedRestaurantDetails.isActive ? true : false}
+                  </Text>
+                </Flex>
                 <Text fontSize="sm" mb={2}>
-                  <strong>Details:</strong> {selectedRestaurantDetails.details || 'N/A'}
-                </Text>
-                <Text fontSize="sm" mb={2}>
-                  <strong>Opening Time:</strong> {selectedRestaurantDetails.opening_time || 'N/A'}
-                </Text>
-                <Text fontSize="sm" mb={2}>
-                  <strong>Closing Time:</strong> {selectedRestaurantDetails.closing_time || 'N/A'}
-                </Text>
-                <Text fontSize="sm" mb={2}>
-                  <strong>Location Address:</strong> {selectedRestaurantDetails.locationAddress || 'N/A'}
-                </Text>
-                <Text fontSize="sm" mb={2}>
-                  <strong>Coordinates:</strong> ({selectedRestaurantDetails.latitude}, {selectedRestaurantDetails.longitude})
-                </Text>
-								</Flex>
-								<Text fontSize="sm" mb={2}>
-                  <strong>SUBCATEGORIES :</strong>
+                  <strong>SUBCATEGORIES:</strong>
                 </Text>
                 {selectedRestaurantDetails.subcategories?.length > 0 ? (
                   selectedRestaurantDetails.subcategories.map((subcategory) => (
@@ -1012,7 +1137,7 @@ function Restaurants() {
                             {subcategory.menuItems.map((item) => (
                               <Tr key={item._id}>
                                 <Td>{item.name}</Td>
-                                <Td>${item.price}</Td>
+                                <Td>₹{item.price}</Td>
                                 <Td>{item.description}</Td>
                                 <Td>
                                   {item.image && (

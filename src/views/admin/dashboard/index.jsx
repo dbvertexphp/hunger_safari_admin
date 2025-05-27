@@ -20,12 +20,13 @@ import {
   MdMoney,
 } from "react-icons/md";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 export default function UserReports() {
   // Chakra Color Mode
   const brandColor = useColorModeValue("brand.500", "white");
   const boxBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
-
+  const navigate = useNavigate();
   // State for API data, loading, and error
   const [dashboardData, setDashboardData] = useState({
     users: 0,
@@ -57,12 +58,23 @@ export default function UserReports() {
           users: data.totalUsers ?? 0,
           subAdmins: data.totalSubAdmins ?? 0,
           restaurants: data.totalRestaurants ?? 0,
-          codCollection: data.codPayments ?? 0,
-          onlineCollection: data.onlinePayments ?? 0,
+					codOrders: data.codOrders ?? 0,
+					onlineOrders: data.onlineOrders ?? 0,
+          codCollection: data.codCollection ?? 0,
+          onlineCollection: data.onlineCollection ?? 0,
           newTasks: data.newTasks ?? 0,
         });
       } catch (err) {
         console.error("API Error:", err.response || err.message);
+				if (
+          err.response?.data?.message === 'Not authorized, token failed' ||
+          err.response?.data?.message === 'Session expired or logged in on another device' ||
+          err.response?.data?.message ===
+            'Un-Authorized, You are not authorized to access this route.' || 'Not authorized, token failed'
+        ) {
+          localStorage.removeItem('token');
+          navigate('/');
+        }
         setError("Failed to fetch dashboard data. Please try again later.");
       } finally {
         setLoading(false);
@@ -70,7 +82,7 @@ export default function UserReports() {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [navigate]);
 
   console.log("data2", dashboardData)
 
@@ -120,6 +132,24 @@ export default function UserReports() {
           }
           name="Restaurants"
           value={dashboardData.restaurants.toLocaleString()}
+        />
+				 <MiniStatistics
+          startContent={
+            <IconBox w="56px" h="56px" bg={boxBg}
+              icon={<Icon as={MdMoney} w="32px" h="32px" color={brandColor} />}
+            />
+          }
+          name="COD Orders"
+          value={`${dashboardData.codOrders.toLocaleString()}`}
+        />
+				 <MiniStatistics
+          startContent={
+            <IconBox w="56px" h="56px" bg={boxBg}
+              icon={<Icon as={MdAttachMoney} w="32px" h="32px" color={brandColor} />}
+            />
+          }
+          name="Online Orders"
+          value={`${dashboardData.onlineOrders.toLocaleString()}`}
         />
         <MiniStatistics
           startContent={

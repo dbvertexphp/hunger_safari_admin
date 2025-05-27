@@ -1,8 +1,8 @@
 import {
-  Button,
+  // Button,
   Flex,
   Image,
-  Link,
+  // Link,
   Text,
   useColorModeValue,
 } from "@chakra-ui/react";

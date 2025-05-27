@@ -95,7 +95,11 @@ const useFetchSubAdmins = (baseUrl, token, navigate, restaurants) => {
               restaurant_id: user.restaurant_id?._id || 'N/A',
               restaurant_name: user.restaurant_id?.name || 'N/A',
               plain_password: user.plain_password || 'N/A',
-              active: user.active ?? true, // Include active field
+              active: user.active ?? true,
+              codOrders: user.codOrders || 0,
+              onlineOrders: user.onlineOrders || 0,
+              codCollection: user.codCollection || 0,
+              onlineCollection: user.onlineCollection || 0,
             };
           }),
         );
@@ -128,7 +132,7 @@ const useFetchRestaurants = (baseUrl, token) => {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const navigate = useNavigate();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -144,13 +148,22 @@ const useFetchRestaurants = (baseUrl, token) => {
         setRestaurants(response.data);
       } catch (error) {
         console.error('Error fetching restaurants:', error);
+        if (
+          error.response?.data?.message === 'Not authorized, token failed' ||
+          error.response?.data?.message === 'Session expired or logged in on another device' ||
+          error.response?.data?.message ===
+            'Un-Authorized, You are not authorized to access this route.' || 'Not authorized, token failed'
+        ) {
+          localStorage.removeItem('token');
+          navigate('/');
+        }
         setError(error.response?.data?.message || 'Failed to load restaurants');
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [baseUrl, token]);
+  }, [baseUrl, token, navigate]);
 
   return { restaurants, loading, error };
 };
@@ -247,6 +260,78 @@ const getColumns = (textColor, handleEditClick, handleToggleActive) => [
       </Text>
     ),
   }),
+  columnHelper.accessor('codOrders', {
+    id: 'codOrders',
+    header: () => (
+      <Text
+        justifyContent="space-between"
+        align="center"
+        fontSize={{ sm: '10px', lg: '12px' }}
+        color="gray.400"
+      >
+        CODORDERS
+      </Text>
+    ),
+    cell: (info) => (
+      <Text color={textColor} fontSize="sm" fontWeight="700">
+        {info.getValue()}
+      </Text>
+    ),
+  }),
+  columnHelper.accessor('onlineOrders', {
+    id: 'onlineOrders',
+    header: () => (
+      <Text
+        justifyContent="space-between"
+        align="center"
+        fontSize={{ sm: '10px', lg: '12px' }}
+        color="gray.400"
+      >
+        ONLINEORDERS
+      </Text>
+    ),
+    cell: (info) => (
+      <Text color={textColor} fontSize="sm" fontWeight="700">
+        {info.getValue()}
+      </Text>
+    ),
+  }),
+  columnHelper.accessor('codCollection', {
+    id: 'codCollection',
+    header: () => (
+      <Text
+        justifyContent="space-between"
+        align="center"
+        fontSize={{ sm: '10px', lg: '12px' }}
+        color="gray.400"
+      >
+        CODCOLLECTION
+      </Text>
+    ),
+    cell: (info) => (
+      <Text color={textColor} fontSize="sm" fontWeight="700">
+        {info.getValue()}
+      </Text>
+    ),
+  }),
+  columnHelper.accessor('onlineCollection', {
+    id: 'onlineCollection',
+    header: () => (
+      <Text
+        justifyContent="space-between"
+        align="center"
+        fontSize={{ sm: '10px', lg: '12px' }}
+        color="gray.400"
+      >
+        ONLINECOLLECTION
+      </Text>
+    ),
+    cell: (info) => (
+      <Text color={textColor} fontSize="sm" fontWeight="700">
+        {info.getValue()}
+      </Text>
+    ),
+  }),
   columnHelper.accessor('active', {
     id: 'active',
     header: () => (
@@ -333,7 +418,7 @@ function Settings() {
   const handleToggleActive = useCallback(
     async (user) => {
       try {
-				const userId = user.id;
+        const userId = user.id;
         const newActiveStatus = !user.active;
         const response = await axios.patch(
           `${baseUrl}api/admin/updateUserStatus`,
@@ -404,7 +489,7 @@ function Settings() {
   };
 
   const handleCreateSubAdmin = () => {
-    navigate('/create-subadmin');
+    navigate('/admin/create-subadmin');
   };
 
   const handleInputChange = (e) => {
@@ -550,7 +635,7 @@ function Settings() {
         flexDirection="column"
         w="100%"
         px="0px"
-        overflowX={{ sm: 'scroll', lg: 'hidden' }}
+        overflowX="auto"
       >
         <Flex px="25px" mb="8px" justifyContent="space-between" align="center">
           <Text
@@ -565,8 +650,14 @@ function Settings() {
             Create Sub-Admin
           </Button>
         </Flex>
-        <Box>
-          <Table variant="simple" color="gray.500" mb="24px" mt="12px">
+        <Box overflowX="auto">
+          <Table
+            variant="simple"
+            color="gray.500"
+            mb="24px"
+            mt="12px"
+            minWidth="1200px"
+          >
             <Thead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <Tr key={headerGroup.id}>
